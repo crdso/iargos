@@ -104,7 +104,9 @@ export default function Verifier() {
     <main className="relative flex min-h-screen flex-col overflow-x-hidden">
       <section className="relative flex min-h-screen flex-col">
         <div className="mx-auto flex w-full max-w-[750px] flex-1 flex-col justify-center px-4 pt-10 pb-6">
-          <h1 className="mb-9 text-center text-[32px] font-extrabold tracking-tight" style={{ color: "var(--ink)" }}>
+          <h1 className="mb-9 flex items-center justify-center gap-2 text-[32px] font-extrabold tracking-tight" style={{ color: "var(--ink)" }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/assets/icone.png" alt="" width={44} height={44} className="h-11 w-11 object-contain" />
             IArgoss
           </h1>
 
