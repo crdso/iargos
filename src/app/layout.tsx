@@ -5,7 +5,7 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 export const metadata: Metadata = {
-  title: "IArgos — verificação de notícias",
+  title: "IArgoss — verificação de notícias",
   description: "Plataforma educacional de combate à desinformação com pesquisa e análise por IA.",
 };
 

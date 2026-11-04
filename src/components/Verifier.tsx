@@ -26,13 +26,20 @@ const INFO: Record<string, { t: string; body: React.ReactNode }> = {
     body: (
       <>
         <p>
-          O IArgos é uma plataforma educacional contra a desinformação. O nome vem de Argos, o gigante grego dos muitos olhos e da vigilância constante; o mascote
+          O IArgoss é uma plataforma educacional contra a desinformação. O nome vem de Argos, o gigante grego dos muitos olhos e da vigilância constante; o mascote
           representa essa vigilância de forma tecnológica.
         </p>
         <p>Incentivamos a alfabetização midiática, o pensamento crítico e a análise ética das informações. Alinhado aos ODS 4 (Educação de qualidade), 10 (Redução das desigualdades) e 16 (Paz, justiça e instituições eficazes).</p>
         <p>
-          <b>Equipe:</b> Arthur, Juliana, Maria Luísa, Paulo e Taylon.
+          <b>Equipe:</b>
         </p>
+        <ul className="list-disc pl-5">
+          <li>Paulo Hernandes Gonçalves da Silva</li>
+          <li>Arthur Ferreira de Souza</li>
+          <li>Juliana Gomes de Lima</li>
+          <li>Maria Luiza Damascena dos Santos</li>
+          <li>Thaylon Fernandes de Carvalho</li>
+        </ul>
       </>
     ),
   },
@@ -48,14 +55,14 @@ const INFO: Record<string, { t: string; body: React.ReactNode }> = {
   contato: {
     t: "Contato",
     body: (
-      <p>Dúvidas, sugestões ou correções sobre o IArgos? Entre em contato com a equipe do projeto.</p>
+      <p>Dúvidas, sugestões ou correções sobre o IArgoss? Entre em contato com a equipe do projeto.</p>
     ),
   },
   termos: {
     t: "Termos",
     body: (
       <>
-        <p>O IArgos é uma ferramenta educacional de apoio e pode errar. Confira sempre as fontes listadas antes de tomar decisões ou compartilhar conclusões.</p>
+        <p>O IArgoss é uma ferramenta educacional de apoio e pode errar. Confira sempre as fontes listadas antes de tomar decisões ou compartilhar conclusões.</p>
         <p>O texto/link enviado é processado pela API da OpenAI (com pesquisa na web) para gerar a análise. Não armazenamos suas pesquisas nem exigimos cadastro. Há limite de uso por pessoa.</p>
       </>
     ),
@@ -98,7 +105,7 @@ export default function Verifier() {
       <section className="relative flex min-h-screen flex-col">
         <div className="mx-auto flex w-full max-w-[750px] flex-1 flex-col justify-center px-4 pt-10 pb-6">
           <h1 className="mb-9 text-center text-[32px] font-extrabold tracking-tight" style={{ color: "var(--ink)" }}>
-            www.iargos.com
+            www.iargoss.com
           </h1>
 
           <form onSubmit={submit} className="card flex items-center gap-2 p-[5px]" style={{ borderRadius: 12, borderColor: "#c9d0da" }}>
@@ -151,7 +158,7 @@ export default function Verifier() {
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src="/assets/ROBO.png"
-          alt="Mascote robô do IArgos"
+          alt="Mascote robô do IArgoss"
           className="pointer-events-none absolute right-2 bottom-2 z-0 hidden h-auto w-[clamp(120px,17vw,290px)] select-none md:block lg:right-6"
         />
 
