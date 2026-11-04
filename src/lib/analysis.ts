@@ -49,9 +49,8 @@ export function computeConfidence(criterios: ModelOutput["criterios"], realSourc
   return Math.round(score);
 }
 
-type Chunk = { web?: { uri?: string; title?: string } };
-type Meta = { groundingChunks?: Chunk[] } | undefined;
-type UrlMeta = { urlMetadata?: { retrievedUrl?: string; urlRetrievalStatus?: string }[] } | undefined;
+type Ref = { url: string; title?: string };
+type Refs = { citations: Ref[]; consulted: Ref[] };
 
 function safeHost(u: string) {
   try {
@@ -61,8 +60,8 @@ function safeHost(u: string) {
   }
 }
 
-/** Monta a lista de fontes SOMENTE a partir dos metadados reais retornados pela API. */
-export function extractSources(meta: Meta, urlMeta: UrlMeta, notes: ModelOutput["notas_fontes"]): Source[] {
+/** Monta a lista de fontes SOMENTE a partir de url_citation e web_search_call.action.sources reais. */
+export function extractSources(refs: Refs | undefined, notes: ModelOutput["notas_fontes"]): Source[] {
   const seen = new Set<string>();
   const out: Source[] = [];
   const findNote = (title: string, domain: string) => {
@@ -73,32 +72,21 @@ export function extractSources(meta: Meta, urlMeta: UrlMeta, notes: ModelOutput[
       return nt && (t.includes(nt) || nt.includes(t) || nt.includes(d) || d.includes(nt));
     });
   };
-  for (const c of meta?.groundingChunks ?? []) {
-    const uri = c.web?.uri;
-    if (!uri || !/^https?:\/\//i.test(uri) || seen.has(uri)) continue;
-    seen.add(uri);
-    const title = c.web?.title || uri;
-    const dominio = title.includes(".") && !/\s/.test(title) ? title : safeHost(uri);
-    const note = findNote(title, dominio);
+  const add = (r: Ref, cited: boolean) => {
+    if (!r.url || !/^https?:\/\//i.test(r.url) || seen.has(r.url)) return;
+    seen.add(r.url);
+    const dominio = safeHost(r.url);
+    const titulo = r.title?.trim() || dominio;
+    const note = findNote(titulo, dominio);
     out.push({
-      titulo: title,
+      titulo,
       dominio,
-      url: uri,
-      relevancia: note?.relevancia ?? "Fonte consultada pela busca (sem nota de relevância).",
+      url: r.url,
+      relevancia: note?.relevancia ?? (cited ? "Fonte citada pela IA (sem nota de relevância)." : "Página consultada na pesquisa, não citada diretamente."),
       data: note?.data,
     });
-  }
-  for (const u of urlMeta?.urlMetadata ?? []) {
-    const uri = u.retrievedUrl;
-    if (!uri || seen.has(uri) || !/^https?:\/\//i.test(uri)) continue;
-    seen.add(uri);
-    const ok = !u.urlRetrievalStatus || u.urlRetrievalStatus.includes("SUCCESS");
-    out.push({
-      titulo: safeHost(uri),
-      dominio: safeHost(uri),
-      url: uri,
-      relevancia: ok ? "Página informada pelo usuário, lida pela IA." : "Página informada pelo usuário; a leitura falhou.",
-    });
-  }
+  };
+  for (const c of refs?.citations ?? []) add(c, true);
+  for (const c of refs?.consulted ?? []) add(c, false);
   return out;
 }

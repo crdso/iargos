@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { runVerification, type Generate } from "@/lib/gemini";
+import { runVerification, type Generate } from "@/lib/openai";
 import { resetUsage, usageSnapshot, recordUsage } from "@/lib/usage";
 import { applyValidators } from "@/lib/verification";
 
@@ -33,15 +33,30 @@ function model(classificacao: string, evidencias: Ev[], extra: Record<string, un
   };
 }
 
-function resp(json: unknown, sites: string[], tokens = 1000, queries = 3) {
+/** Resposta no formato real da OpenAI Responses API (web_search_call + message/output_text/url_citation). */
+function resp(json: unknown, sites: string[], tokens = 1000, searches = 3) {
+  const text = JSON.stringify(json);
   return {
-    text: JSON.stringify(json),
-    usageMetadata: { promptTokenCount: tokens - 200, candidatesTokenCount: 200, totalTokenCount: tokens },
-    candidates: [{ groundingMetadata: { webSearchQueries: Array.from({ length: queries }, (_, i) => `q${i}`), groundingChunks: sites.map((s) => ({ web: { uri: SITES[s], title: s } })) } }],
+    id: "resp_test",
+    status: "completed",
+    output: [
+      ...Array.from({ length: searches }, (_, i) => ({
+        type: "web_search_call",
+        id: `ws_${i}`,
+        status: "completed",
+        action: { type: "search", queries: [`consulta ${i}`], sources: sites.map((s) => ({ type: "url", url: SITES[s] + "?utm_source=openai" })) },
+      })),
+      { type: "message", role: "assistant", content: [{ type: "output_text", text, annotations: sites.map((s) => ({ type: "url_citation", url: SITES[s] + "?utm_source=openai", title: s, start_index: 0, end_index: 1 })) }] },
+    ],
+    usage: { input_tokens: tokens - 200, input_tokens_details: { cached_tokens: 0 }, output_tokens: 200, output_tokens_details: { reasoning_tokens: 50 }, total_tokens: tokens },
   };
 }
 
-const review = (c: string) => ({ text: JSON.stringify({ classificacao_revisada: c, objecoes: ["revisão"] }), usageMetadata: { totalTokenCount: 300 }, candidates: [{}] });
+const review = (c: string) => ({
+  status: "completed",
+  output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ classificacao_revisada: c, objecoes: ["revisão"] }), annotations: [] }] }],
+  usage: { input_tokens: 200, output_tokens: 100, total_tokens: 300 },
+});
 
 function gen(first: unknown, second: unknown = review("Verdadeira")) {
   return vi.fn<Generate>().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
@@ -217,9 +232,14 @@ describe("integridade da matriz e revisão", () => {
     expect(g).toHaveBeenCalledTimes(1); // nem chama o revisor
   });
 
-  it("sem grounding retornado: Inconclusiva", async () => {
-    const g = gen(resp(model("Verdadeira", [{ fonte: "gov.br", papel: "primaria", posicao: "apoia" }]), []));
-    expect((await runVerification(input("Só memória do modelo"), null, { generate: g })).classificacao).toBe("Inconclusiva");
+  it("recusa resposta sem busca real (apenas 'afirma' ter pesquisado)", async () => {
+    const g = gen(resp(model("Verdadeira", [{ fonte: "gov.br", papel: "primaria", posicao: "apoia" }]), ["gov.br"], 1000, 0));
+    await expect(runVerification(input("Só memória do modelo"), null, { generate: g })).rejects.toMatchObject({ code: "no_search" });
+  });
+
+  it("recusa resposta com busca mas sem nenhuma fonte", async () => {
+    const g = gen(resp(model("Verdadeira", []), [], 1000, 2));
+    await expect(runVerification(input("Busca vazia"), null, { generate: g })).rejects.toMatchObject({ code: "no_search" });
   });
 
   it("falha da revisão limita a confiança", async () => {
@@ -236,10 +256,15 @@ describe("consumo de tokens e buscas", () => {
     const q = input("Consumo");
     const a = await runVerification(q, null, { generate: g });
     expect(a.uso).toMatchObject({ chamadas: 2, tokensTotal: 1300, consultasBusca: 4, revisaoExecutada: true, cache: false });
+    // custo = tokens (800*0,75 + 200*4,5 + 200*0,75 + 100*4,5)/1M + 4 buscas × US$ 0,01
+    expect(a.uso.custoUsd).toBeCloseTo(0.04 + (800 * 0.75 + 200 * 4.5 + 200 * 0.75 + 100 * 4.5) / 1e6, 4);
+    expect(a.uso.consultasEfetuadas).toHaveLength(4);
+    expect(a.fontes[0].url).toBe(SITES["gov.br"]); // utm_source removido
     const b = await runVerification(q, null, { generate: g });
     expect(b.uso.cache).toBe(true);
     expect(g).toHaveBeenCalledTimes(2);
     expect(usageSnapshot()).toMatchObject({ tokens: 1300, searches: 4, cacheHits: 1 });
+    expect(usageSnapshot().cost).toBeGreaterThan(0.04);
   });
 
   it("bloqueia ao esgotar o orçamento diário", async () => {

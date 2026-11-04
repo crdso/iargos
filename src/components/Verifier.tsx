@@ -56,7 +56,7 @@ const INFO: Record<string, { t: string; body: React.ReactNode }> = {
     body: (
       <>
         <p>O IArgos é uma ferramenta educacional de apoio e pode errar. Confira sempre as fontes listadas antes de tomar decisões ou compartilhar conclusões.</p>
-        <p>O texto/link enviado é processado pela API do Google Gemini para gerar a análise. Não armazenamos suas pesquisas nem exigimos cadastro. Há limite de uso por pessoa.</p>
+        <p>O texto/link enviado é processado pela API da OpenAI (com pesquisa na web) para gerar a análise. Não armazenamos suas pesquisas nem exigimos cadastro. Há limite de uso por pessoa.</p>
       </>
     ),
   },
@@ -305,7 +305,7 @@ function ResultPanel({ r }: { r: VerifyResult }) {
           </ul>
         )}
         <p className="mt-4 text-xs" style={{ color: "var(--ink2)" }}>
-          Verificado em {new Date(r.verificadoEm).toLocaleString("pt-BR")} · modelo {r.modelo} · {r.uso.tokensTotal} tokens, {r.uso.consultasBusca} consulta(s) de busca{r.uso.cache ? " (resultado em cache)" : ""}
+          Verificado em {new Date(r.verificadoEm).toLocaleString("pt-BR")} · modelo {r.modelo} · {r.uso.tokensTotal} tokens, {r.uso.consultasBusca} pesquisa(s) web, custo estimado US$ {r.uso.custoUsd.toFixed(3)}{r.uso.cache ? " (resultado em cache)" : ""}
         </p>
       </div>
     </div>

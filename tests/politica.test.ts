@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { getSystemInstruction } from "@/lib/gemini";
+import { getSystemInstruction } from "@/lib/openai";
 
 describe("política de verificação IArgos", () => {
-  it("carrega o Markdown real como instrução do Gemini", () => {
+  it("carrega o Markdown real como instrução do IA", () => {
     const policy = getSystemInstruction();
     expect(policy.length).toBeGreaterThan(1000);
     expect(policy).toContain("QUEM CRIOU?");

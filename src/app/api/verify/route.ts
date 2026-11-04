@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requestSchema } from "@/lib/schema";
 import { extractUrl, isSafeUrl, rateLimit } from "@/lib/security";
-import { runVerification, VerifyError } from "@/lib/gemini";
+import { runVerification, VerifyError } from "@/lib/openai";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
