@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     console.info(`[iargos] ${result.classificacao} tokens=${result.uso.tokensTotal} buscas=${result.uso.consultasBusca} chamadas=${result.uso.chamadas} cache=${result.uso.cache}`);
     return NextResponse.json(result);
   } catch (e) {
-    if (e instanceof VerifyError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
+    if (e instanceof VerifyError) return NextResponse.json({ error: e.message, code: e.code, ...(e.detail ? { detalhe: e.detail } : {}) }, { status: e.status });
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });
   }
 }

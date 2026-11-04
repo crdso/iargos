@@ -22,6 +22,7 @@ export class VerifyError extends Error {
     message: string,
     public status = 502,
     public code = "upstream",
+    public detail?: string,
   ) {
     super(message);
   }
@@ -48,11 +49,16 @@ function realGenerate(apiKey: string): Generate {
         config: { systemInstruction: system, ...(tools.length ? { tools } : {}), temperature: 0.2, abortSignal: controller.signal },
       });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (controller.signal.aborted) throw new VerifyError("A análise demorou demais. Tente novamente.", 504, "timeout");
-      if (/429|RESOURCE_EXHAUSTED|quota/i.test(msg)) throw new VerifyError("Limite de uso da API Gemini atingido. Tente mais tarde.", 429, "quota");
-      if (/API key|401|403|PERMISSION_DENIED|UNAUTHENTICATED/i.test(msg)) throw new VerifyError("Chave da API Gemini inválida ou sem permissão.", 503, "bad_key");
-      throw new VerifyError("Falha ao consultar a IA. Tente novamente.", 502, "upstream");
+      const raw = e instanceof Error ? e.message : String(e);
+      const detalhe = raw.replace(/AIza[0-9A-Za-z_-]{20,}/g, "[chave]").replace(/key=[^&\s"]+/gi, "key=[oculta]").slice(0, 300);
+      console.error(`[iargos] Gemini error model=${model}: ${detalhe}`);
+      const mk = (m: string, st: number, code: string) => new VerifyError(m, st, code, detalhe);
+      if (controller.signal.aborted) throw mk("A análise demorou demais. Tente novamente.", 504, "timeout");
+      if (/429|RESOURCE_EXHAUSTED|quota/i.test(raw)) throw mk("Limite de uso da API Gemini atingido. Tente mais tarde.", 429, "quota");
+      if (/API key|401|403|PERMISSION_DENIED|UNAUTHENTICATED/i.test(raw)) throw mk("Chave da API Gemini inválida ou sem permissão.", 503, "bad_key");
+      if (/404|NOT_FOUND|not found for API version|is not supported/i.test(raw)) throw mk("Modelo Gemini indisponível ou inválido (verifique GEMINI_MODEL).", 503, "bad_model");
+      if (/400|INVALID_ARGUMENT/i.test(raw)) throw mk("A API Gemini recusou a requisição (parâmetros/ferramentas incompatíveis com o modelo).", 502, "bad_request");
+      throw mk("Falha ao consultar a IA. Tente novamente.", 502, "upstream");
     } finally {
       clearTimeout(timer);
     }
