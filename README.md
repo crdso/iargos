@@ -13,7 +13,7 @@ npm run build && npm start
 ```
 
 - `GEMINI_API_KEY`: chave em https://aistudio.google.com/apikey (só no backend).
-- `GEMINI_MODEL`: padrão `gemini-2.5-flash`.
+- `GEMINI_MODEL`: padrão `gemini-3.6-flash`.
 - Backend: `POST /api/verify` (validação Zod, bloqueio de URLs locais, rate limit, timeout de 90 s).
 - Fontes exibidas vêm apenas dos metadados reais de grounding; o índice de confiança é calculado no servidor por critérios ponderados (`src/lib/analysis.ts`).
 

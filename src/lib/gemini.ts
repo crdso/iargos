@@ -29,7 +29,7 @@ export class VerifyError extends Error {
 }
 
 export function getModel() {
-  return process.env.GEMINI_MODEL || "gemini-2.5-flash";
+  return process.env.GEMINI_MODEL || "gemini-3.6-flash";
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
