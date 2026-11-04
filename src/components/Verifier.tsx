@@ -105,7 +105,7 @@ export default function Verifier() {
       <section className="relative flex min-h-screen flex-col">
         <div className="mx-auto flex w-full max-w-[750px] flex-1 flex-col justify-center px-4 pt-10 pb-6">
           <h1 className="mb-9 text-center text-[32px] font-extrabold tracking-tight" style={{ color: "var(--ink)" }}>
-            www.iargoss.com
+            IArgoss
           </h1>
 
           <form onSubmit={submit} className="card flex items-center gap-2 p-[5px]" style={{ borderRadius: 12, borderColor: "#c9d0da" }}>
