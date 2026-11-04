@@ -14,6 +14,13 @@ async function blobsDiag() {
     const host = (u?: string) => { try { return new URL(u!).host; } catch { return null; } };
     out.hosts = { edge: host(ctx.edgeURL), uncached: host(ctx.uncachedEdgeURL), api: host(ctx.apiURL) };
   } catch (e) { out.contextError = String(e).slice(0, 100); }
+  for (const u of ["https://edge.netlifyblobs.com/", "https://api.netlify.com/api/v1/", "https://api.openai.com/v1/models"]) {
+    const t0 = Date.now();
+    try {
+      const r = await fetch(u, { signal: AbortSignal.timeout(4000) });
+      out["net " + new URL(u).host] = `HTTP ${r.status} ${Date.now() - t0}ms`;
+    } catch (e) { out["net " + new URL(u).host] = `erro ${(e instanceof Error ? e.message : String(e)).slice(0, 80)} (${Date.now() - t0}ms)`; }
+  }
   const { getStore } = await import("@netlify/blobs");
   for (const consistency of ["eventual", "strong"] as const) {
     const t0 = Date.now();
