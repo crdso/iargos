@@ -6,7 +6,27 @@ import { getModel } from "@/lib/openai";
 export const dynamic = "force-dynamic";
 
 /** Diagnóstico sem segredos: presença das variáveis, tipo de armazenamento e orçamento do dia. */
-export async function GET() {
+async function blobsDiag() {
+  const out: Record<string, unknown> = {};
+  try {
+    const ctx = JSON.parse(Buffer.from(process.env.NETLIFY_BLOBS_CONTEXT ?? "", "base64").toString("utf8"));
+    out.contextKeys = Object.keys(ctx);
+    const host = (u?: string) => { try { return new URL(u!).host; } catch { return null; } };
+    out.hosts = { edge: host(ctx.edgeURL), uncached: host(ctx.uncachedEdgeURL), api: host(ctx.apiURL) };
+  } catch (e) { out.contextError = String(e).slice(0, 100); }
+  const { getStore } = await import("@netlify/blobs");
+  for (const consistency of ["eventual", "strong"] as const) {
+    const t0 = Date.now();
+    try {
+      const st = getStore({ name: "iargos", consistency });
+      await Promise.race([st.get("ping"), new Promise((_, r) => setTimeout(() => r(new Error("timeout 4s")), 4000))]);
+      out[consistency] = `ok ${Date.now() - t0}ms`;
+    } catch (e) { out[consistency] = `erro ${(e instanceof Error ? e.message : String(e)).slice(0, 120)} (${Date.now() - t0}ms)`; }
+  }
+  return out;
+}
+
+export async function GET(req: Request) {
   let store: string = "indisponível";
   let budget = null;
   let storeError: string | null = null;
@@ -17,8 +37,10 @@ export async function GET() {
   } catch (e) {
     storeError = (e instanceof Error ? e.message : String(e)).slice(0, 200);
   }
+  const diag = new URL(req.url).searchParams.has("diag") ? await blobsDiag() : undefined;
   return NextResponse.json(
     {
+      diag,
       openaiKeyConfigured: !!process.env.OPENAI_API_KEY,
       model: getModel(),
       store,
