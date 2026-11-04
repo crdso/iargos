@@ -34,24 +34,45 @@ export function memoryKV(): KV {
   };
 }
 
-const withTimeout = <T,>(p: Promise<T>, ms = 6000): Promise<T> =>
-  Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`Netlify Blobs sem resposta em ${ms} ms`)), ms))]);
-
-async function netlifyKV(): Promise<KV> {
-  const { getStore } = await import("@netlify/blobs");
-  const store = getStore({ name: "iargos", consistency: "strong" });
+/**
+ * Cliente mínimo da API HTTP do Netlify Blobs (contexto injetado em NETLIFY_BLOBS_CONTEXT).
+ * Usamos fetch direto porque o SDK @netlify/blobs travava neste runtime (ver /api/status?diag).
+ */
+export async function netlifyKV(): Promise<KV> {
+  const raw = process.env.NETLIFY_BLOBS_CONTEXT;
+  if (!raw) throw new Error("NETLIFY_BLOBS_CONTEXT ausente");
+  const ctx = JSON.parse(Buffer.from(raw, "base64").toString("utf8")) as { uncachedEdgeURL?: string; edgeURL?: string; siteID: string; token: string };
+  const base = ctx.uncachedEdgeURL ?? ctx.edgeURL;
+  if (!base || !ctx.siteID || !ctx.token) throw new Error("Contexto do Netlify Blobs incompleto");
+  const url = (key: string) => `${base.replace(/\/$/, "")}/${ctx.siteID}/site:iargos/${encodeURIComponent(key)}`;
+  const h = (extra: Record<string, string> = {}) => ({ authorization: `Bearer ${ctx.token}`, ...extra });
+  const sig = () => AbortSignal.timeout(6000);
   return {
     kind: "netlify-blobs",
     async get<T>(key: string) {
-      const r = await withTimeout(store.getWithMetadata(key, { type: "json", consistency: "strong" }));
-      return r && r.etag ? { value: r.data as T, etag: r.etag } : null;
+      const r = await fetch(url(key), { headers: h(), signal: sig() });
+      if (r.status === 404) {
+        await r.text();
+        return null;
+      }
+      if (!r.ok) throw new Error(`Netlify Blobs GET ${r.status}`);
+      const etag = r.headers.get("etag");
+      const value = (await r.json()) as T;
+      return etag ? { value, etag } : null;
     },
     async put<T>(key: string, value: T, opt?: { ifNew?: boolean; ifMatch?: string }) {
-      const r = await withTimeout(store.setJSON(key, value, opt?.ifNew ? { onlyIfNew: true } : opt?.ifMatch ? { onlyIfMatch: opt.ifMatch } : {}));
-      return { ok: r.modified, etag: r.etag };
+      const headers = h({ "content-type": "application/json", "cache-control": "max-age=0, stale-while-revalidate=60" });
+      if (opt?.ifMatch) (headers as Record<string, string>)["if-match"] = opt.ifMatch;
+      else if (opt?.ifNew) (headers as Record<string, string>)["if-none-match"] = "*";
+      const r = await fetch(url(key), { method: "PUT", headers, body: JSON.stringify(value), signal: sig() });
+      await r.text();
+      if (r.status === 412 || r.status === 409) return { ok: false };
+      if (!r.ok) throw new Error(`Netlify Blobs PUT ${r.status}`);
+      return { ok: true, etag: r.headers.get("etag") ?? undefined };
     },
     async del(key: string) {
-      await withTimeout(store.delete(key));
+      const r = await fetch(url(key), { method: "DELETE", headers: h(), signal: sig() });
+      await r.text();
     },
   };
 }
