@@ -1,6 +1,5 @@
 import OpenAI from "openai";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { POLICY } from "./policy.generated";
 import { cleanText, extractSources, limitSources, parseModelJson } from "./analysis";
 import { reviewSchema, type Review, type VerifyResult } from "./schema";
 import { applyValidators } from "./verification";
@@ -8,7 +7,7 @@ import { budgetExceeded, cacheGet, cacheKey, cacheSet, estimateCost, normalizeRe
 
 /** Carrega as regras editoriais efetivas; não duplica um prompt estático no código. */
 export function getSystemInstruction(): string {
-  return readFileSync(join(process.cwd(), "docs", "POLITICA_DE_VERIFICACAO.md"), "utf8");
+  return POLICY;
 }
 
 export const REVIEW_INSTRUCTION = `Você é o REVISOR CRÍTICO do IArgos. Responda em português brasileiro, SOMENTE com JSON:
@@ -23,6 +22,10 @@ export class VerifyError extends Error {
     public status = 502,
     public code = "upstream",
     public detail?: string,
+    public spentUsd = 0,
+    public spentTokens = 0,
+    public spentSearches = 0,
+    public spentCalls = 0,
   ) {
     super(message);
   }
@@ -63,7 +66,7 @@ export function mapOpenAIError(e: unknown, model: string, timedOut = false): Ver
 }
 
 function realGenerate(apiKey: string): Generate {
-  const client = new OpenAI({ apiKey, timeout: 90_000, maxRetries: 0 }); // sem retentativas: evita pagar buscas em duplicidade
+  const client = new OpenAI({ apiKey, timeout: 120_000, maxRetries: 0 }); // sem retentativas: evita pagar buscas em duplicidade
   return async ({ model, system, prompt, search, maxToolCalls, effort, maxOutputTokens }) => {
     try {
       return await client.responses.create({
@@ -142,74 +145,85 @@ export async function runVerification(input: string, url: string | null, deps: {
   norms.push(n1);
   recordUsage({ tokens: n1.total, searches: n1.searchCalls, costUsd: estimateCost(n1, model).total });
 
-  if (n1.status === "incomplete" && !n1.text) throw new VerifyError("A IA não terminou a análise a tempo. Tente novamente.", 502, "incomplete");
-  // Não aceita resposta que apenas afirma ter pesquisado: exige chamada de busca real e fontes reais.
-  if (n1.searchCalls === 0 || (n1.citations.length === 0 && n1.consulted.length === 0)) {
-    throw new VerifyError("A pesquisa na web não foi executada pela IA; por segurança nenhum veredito foi emitido.", 502, "no_search");
-  }
-  const parsed = parseModelJson(n1.text);
-  if (!parsed) throw new VerifyError("A IA não retornou uma análise válida. Tente novamente.", 502, "invalid_output");
-  const fontes = extractSources(n1, parsed.notas_fontes);
-
-  // Camada 2a: critérios determinísticos sobre a matriz de evidências.
-  const pre = applyValidators({ parsed, fontes, submittedUrl: url });
-
-  // Camada 2b: revisão crítica sem busca, só se ainda houver veredito categórico e orçamento.
-  let review: Review | null = null;
-  const categorica = !["Inconclusiva", "Não verificável"].includes(pre.classificacao);
-  const podeRevisar = spent() < maxCostPerVerification() * 0.85;
-  if (categorica && podeRevisar) {
-    const resumoMatriz = pre.matriz.map((m) => ({ fonte: m.fonte, papel: m.papel, posicao: m.posicao, origem: m.origem, aterrada: m.grounded, contaComoLinha: m.contaComoLinha, trecho: m.trecho.slice(0, 300) }));
-    const reviewPrompt = `Alegação: ${parsed.alegacao_principal}\nVeredito preliminar: ${pre.classificacao}\nFato antigo republicado como recente: ${parsed.fato_antigo_republicado}\nLimitações: ${parsed.limitacoes}\nMatriz de evidências:\n${JSON.stringify(resumoMatriz)}`;
-    try {
-      const raw2 = await generate({ model, system: REVIEW_INSTRUCTION, prompt: reviewPrompt, search: false, effort: "low", maxOutputTokens: 1500 });
-      const n2 = normalizeResponse(raw2);
-      norms.push(n2);
-      recordUsage({ tokens: n2.total, searches: 0, costUsd: estimateCost(n2, model).total });
-      review = parseReview(n2.text);
-    } catch {
-      review = null; // falha da revisão não aumenta a confiança: o índice é limitado abaixo
+  try {
+    if (n1.status === "incomplete" && !n1.text) throw new VerifyError("A IA não terminou a análise a tempo. Tente novamente.", 502, "incomplete");
+    // Não aceita resposta que apenas afirma ter pesquisado: exige chamada de busca real e fontes reais.
+    if (n1.searchCalls === 0 || (n1.citations.length === 0 && n1.consulted.length === 0)) {
+      throw new VerifyError("A pesquisa na web não foi executada pela IA; por segurança nenhum veredito foi emitido.", 502, "no_search");
     }
-  }
-  const final = applyValidators({ parsed, fontes, submittedUrl: url, review });
+    const parsed = parseModelJson(n1.text);
+    if (!parsed) throw new VerifyError("A IA não retornou uma análise válida. Tente novamente.", 502, "invalid_output");
+    const fontes = extractSources(n1, parsed.notas_fontes);
 
-  const rebaixada = final.classificacao !== parsed.classificacao;
-  const reviewFalhou = categorica && !review;
-  const cls = final.classificacao;
-  const motivos = final.motivos;
+    // Camada 2a: critérios determinísticos sobre a matriz de evidências.
+    const pre = applyValidators({ parsed, fontes, submittedUrl: url });
 
-  let confianca = cls === "Inconclusiva" || cls === "Não verificável" ? null : final.confianca;
-  if (confianca !== null && reviewFalhou) confianca = Math.min(confianca, 60);
+    // Camada 2b: revisão crítica sem busca, só se ainda houver veredito categórico e orçamento.
+    let review: Review | null = null;
+    const categorica = !["Inconclusiva", "Não verificável"].includes(pre.classificacao);
+    const podeRevisar = spent() < maxCostPerVerification() * 0.85;
+    if (categorica && podeRevisar) {
+      const resumoMatriz = pre.matriz.map((m) => ({ fonte: m.fonte, papel: m.papel, posicao: m.posicao, origem: m.origem, aterrada: m.grounded, contaComoLinha: m.contaComoLinha, trecho: m.trecho.slice(0, 300) }));
+      const reviewPrompt = `Alegação: ${parsed.alegacao_principal}\nVeredito preliminar: ${pre.classificacao}\nFato antigo republicado como recente: ${parsed.fato_antigo_republicado}\nLimitações: ${parsed.limitacoes}\nMatriz de evidências:\n${JSON.stringify(resumoMatriz)}`;
+      try {
+        const raw2 = await generate({ model, system: REVIEW_INSTRUCTION, prompt: reviewPrompt, search: false, effort: "low", maxOutputTokens: 1500 });
+        const n2 = normalizeResponse(raw2);
+        norms.push(n2);
+        recordUsage({ tokens: n2.total, searches: 0, costUsd: estimateCost(n2, model).total });
+        review = parseReview(n2.text);
+      } catch {
+        review = null; // falha da revisão não aumenta a confiança: o índice é limitado abaixo
+      }
+    }
+    const final = applyValidators({ parsed, fontes, submittedUrl: url, review });
 
-  const usadas = new Set(final.matriz.filter((m) => m.url).map((m) => m.url as string));
-  const fontesAnotadas = limitSources(
-    fontes.map((f) => {
-      const m = final.matriz.find((x) => x.url === f.url);
-      return m ? { ...f, papel: m.papel, posicao: m.posicao } : f;
-    }),
-    usadas,
-    15,
-  );
+    const rebaixada = final.classificacao !== parsed.classificacao;
+    const reviewFalhou = categorica && !review;
+    const cls = final.classificacao;
+    const motivos = final.motivos;
 
-  const result: VerifyResult = {
-    classificacao: cls,
-    resumo: rebaixada
-      ? `A corroboração disponível não sustenta um veredito categórico. Motivo: ${motivos.join(" ")} Análise preliminar da IA (não confirmada): ${cleanText(parsed.resumo)}`
-      : cleanText(parsed.resumo),
-    alegacao: cleanText(parsed.alegacao_principal),
-    confianca,
-    quemCriou: cleanText(parsed.quem_criou),
-    qualAFonte: cleanText(parsed.qual_a_fonte),
-    qualOInteresse: cleanText(parsed.qual_o_interesse),
-    limitacoes: [cleanText(parsed.limitacoes), reviewFalhou ? (podeRevisar ? "A revisão crítica não pôde ser concluída." : "Revisão crítica dispensada pelo limite de gasto por verificação.") : ""].filter(Boolean).join(" "),
-    fontes: fontesAnotadas,
-    verificadoEm: new Date().toISOString(),
-    modelo: model,
-    matriz: final.matriz,
-    linhasIndependentes: final.linhas,
-    validacoes: motivos,
-    uso: { ...sumUso(norms, !!review, model), consultasEfetuadas: n1.queries },
-  };
+    let confianca = cls === "Inconclusiva" || cls === "Não verificável" ? null : final.confianca;
+    if (confianca !== null && reviewFalhou) confianca = Math.min(confianca, 60);
+
+    const usadas = new Set(final.matriz.filter((m) => m.url).map((m) => m.url as string));
+    const fontesAnotadas = limitSources(
+      fontes.map((f) => {
+        const m = final.matriz.find((x) => x.url === f.url);
+        return m ? { ...f, papel: m.papel, posicao: m.posicao } : f;
+      }),
+      usadas,
+      15,
+    );
+
+    const result: VerifyResult = {
+      classificacao: cls,
+      resumo: rebaixada
+        ? `A corroboração disponível não sustenta um veredito categórico. Motivo: ${motivos.join(" ")} Análise preliminar da IA (não confirmada): ${cleanText(parsed.resumo)}`
+        : cleanText(parsed.resumo),
+      alegacao: cleanText(parsed.alegacao_principal),
+      confianca,
+      quemCriou: cleanText(parsed.quem_criou),
+      qualAFonte: cleanText(parsed.qual_a_fonte),
+      qualOInteresse: cleanText(parsed.qual_o_interesse),
+      limitacoes: [cleanText(parsed.limitacoes), reviewFalhou ? (podeRevisar ? "A revisão crítica não pôde ser concluída." : "Revisão crítica dispensada pelo limite de gasto por verificação.") : ""].filter(Boolean).join(" "),
+      fontes: fontesAnotadas,
+      verificadoEm: new Date().toISOString(),
+      modelo: model,
+      matriz: final.matriz,
+      linhasIndependentes: final.linhas,
+      validacoes: motivos,
+      uso: { ...sumUso(norms, !!review, model), consultasEfetuadas: n1.queries },
+    };
   cacheSet(key, result);
   return result;
+  } catch (e) {
+    if (e instanceof VerifyError) {
+      e.spentUsd = spent();
+      e.spentTokens = norms.reduce((a, n) => a + n.total, 0);
+      e.spentSearches = norms.reduce((a, n) => a + n.searchCalls, 0);
+      e.spentCalls = norms.length;
+    }
+    throw e;
+  }
+
 }

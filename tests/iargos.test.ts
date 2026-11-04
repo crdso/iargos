@@ -2,6 +2,7 @@ import { describe, expect, it, beforeEach } from "vitest";
 import { computeConfidence, extractSources, parseModelJson } from "@/lib/analysis";
 import { extractUrl, isSafeUrl, rateLimit, resetRateLimit } from "@/lib/security";
 import { POST } from "@/app/api/verify/route";
+import { __setKVForTests, memoryKV } from "@/lib/store";
 
 const valid = {
   resumo: "ok",
@@ -72,6 +73,7 @@ describe("segurança", () => {
 describe("POST /api/verify", () => {
   beforeEach(() => {
     resetRateLimit();
+    __setKVForTests(memoryKV());
     delete process.env.OPENAI_API_KEY; // nunca usa chave real nos testes
   });
   const call = (body: unknown) => POST(new Request("http://t/api/verify", { method: "POST", body: JSON.stringify(body) }));

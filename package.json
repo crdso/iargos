@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "predev": "node scripts/embed-policy.mjs",
+    "prebuild": "node scripts/embed-policy.mjs",
+    "pretest": "node scripts/embed-policy.mjs"
   },
   "dependencies": {
+    "@netlify/blobs": "^11.1.7",
     "lucide-react": "^1.68.0",
     "next": "^16.4.5",
     "openai": "^7.50.0",
