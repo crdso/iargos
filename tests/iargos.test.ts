@@ -37,17 +37,16 @@ describe("computeConfidence", () => {
 });
 
 describe("extractSources", () => {
-  it("usa só links reais e ignora esquemas perigosos", () => {
+  it("usa só links reais (http/https) e anexa a nota de relevância", () => {
     const s = extractSources(
-      { groundingChunks: [{ web: { uri: "https://g1.globo.com/x", title: "g1.globo.com" } }, { web: { uri: "javascript:alert(1)", title: "x" } }, {}] },
-      undefined,
+      { citations: [{ url: "https://g1.globo.com/x", title: "g1.globo.com" }, { url: "javascript:alert(1)", title: "x" }], consulted: [{ url: "https://g1.globo.com/x" }, { url: "https://uol.com.br/y" }] },
       [{ titulo: "g1.globo.com", relevancia: "Fonte primária" }],
     );
-    expect(s).toHaveLength(1);
+    expect(s.map((x) => x.url)).toEqual(["https://g1.globo.com/x", "https://uol.com.br/y"]);
     expect(s[0].relevancia).toBe("Fonte primária");
   });
   it("sem metadados, sem fontes", () => {
-    expect(extractSources(undefined, undefined, [])).toEqual([]);
+    expect(extractSources(undefined, [])).toEqual([]);
   });
 });
 
@@ -73,7 +72,7 @@ describe("segurança", () => {
 describe("POST /api/verify", () => {
   beforeEach(() => {
     resetRateLimit();
-    delete process.env.GEMINI_API_KEY;
+    delete process.env.OPENAI_API_KEY; // nunca usa chave real nos testes
   });
   const call = (body: unknown) => POST(new Request("http://t/api/verify", { method: "POST", body: JSON.stringify(body) }));
   it("400 para entrada curta", async () => {

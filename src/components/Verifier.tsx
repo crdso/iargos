@@ -56,7 +56,7 @@ const INFO: Record<string, { t: string; body: React.ReactNode }> = {
     body: (
       <>
         <p>O IArgos é uma ferramenta educacional de apoio e pode errar. Confira sempre as fontes listadas antes de tomar decisões ou compartilhar conclusões.</p>
-        <p>O texto/link enviado é processado pela API do Google Gemini para gerar a análise. Não armazenamos suas pesquisas nem exigimos cadastro. Há limite de uso por pessoa.</p>
+        <p>O texto/link enviado é processado pela API da OpenAI (com pesquisa na web) para gerar a análise. Não armazenamos suas pesquisas nem exigimos cadastro. Há limite de uso por pessoa.</p>
       </>
     ),
   },
@@ -82,8 +82,8 @@ export default function Verifier() {
     setResult(null);
     try {
       const r = await fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: q }) });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error || "Não foi possível concluir a verificação.");
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.error || "O servidor demorou demais ou falhou antes de concluir a análise. Tente novamente.");
       setResult(data);
       setTimeout(() => resRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (err) {
@@ -244,6 +244,46 @@ function ResultPanel({ r }: { r: VerifyResult }) {
         </div>
       )}
 
+      {r.matriz.length > 0 && (
+        <div className="card p-6">
+          <h2 className="mb-1 text-lg font-bold">Matriz de evidências</h2>
+          <p className="mb-3 text-sm" style={{ color: "var(--ink2)" }}>
+            Linhas independentes que apoiam: {r.linhasIndependentes.apoio}
+            {r.linhasIndependentes.primariaApoio ? " (com evidência primária)" : ""} · que contradizem: {r.linhasIndependentes.contradicao}. Republicações e fontes com a mesma origem contam como uma só.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr style={{ color: "var(--ink2)" }}>
+                  <th className="py-1 pr-3">Fonte</th>
+                  <th className="py-1 pr-3">Papel</th>
+                  <th className="py-1 pr-3">Posição</th>
+                  <th className="py-1">Conta como linha?</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.matriz.map((m, i) => (
+                  <tr key={i} className="border-t" style={{ borderColor: "var(--line)" }}>
+                    <td className="py-1 pr-3">
+                      {m.url ? (
+                        <a href={m.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue2)" }}>
+                          {m.fonte}
+                        </a>
+                      ) : (
+                        <span title="Não corresponde a uma fonte real da busca">{m.fonte} (não verificada)</span>
+                      )}
+                    </td>
+                    <td className="py-1 pr-3">{m.papel}</td>
+                    <td className="py-1 pr-3">{m.posicao}</td>
+                    <td className="py-1">{m.contaComoLinha ? "Sim" : "Não"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="card p-6">
         <h2 className="mb-3 text-lg font-bold">Fontes e evidências</h2>
         {r.fontes.length === 0 ? (
@@ -265,7 +305,7 @@ function ResultPanel({ r }: { r: VerifyResult }) {
           </ul>
         )}
         <p className="mt-4 text-xs" style={{ color: "var(--ink2)" }}>
-          Verificado em {new Date(r.verificadoEm).toLocaleString("pt-BR")} · modelo {r.modelo}
+          Verificado em {new Date(r.verificadoEm).toLocaleString("pt-BR")} · modelo {r.modelo} · {r.uso.tokensTotal} tokens, {r.uso.consultasBusca} pesquisa(s) web, custo estimado US$ {r.uso.custoUsd.toFixed(3)}{r.uso.cache ? " (resultado em cache)" : ""}
         </p>
       </div>
     </div>
