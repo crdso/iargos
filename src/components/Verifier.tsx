@@ -82,26 +82,8 @@ export default function Verifier() {
     setResult(null);
     try {
       const r = await fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: q }) });
-      let data = await r.json().catch(() => null);
-      if (!r.ok) throw new Error(data?.error || "O servidor falhou antes de iniciar a análise. Tente novamente.");
-      // A análise roda em segundo plano (Netlify); consultamos o andamento sem repetir chamadas pagas.
-      if (data?.status !== "done") {
-        const id = data?.jobId as string;
-        const started = Date.now();
-        for (;;) {
-          if (Date.now() - started > 240_000) throw new Error("A análise está demorando mais que o esperado. Tente novamente em instantes.");
-          await new Promise((res) => setTimeout(res, 2000));
-          const pr = await fetch(`/api/verify/${id}`, { cache: "no-store" });
-          const pj = await pr.json().catch(() => null);
-          if (!pr.ok) throw new Error(pj?.error || "Não foi possível acompanhar a análise.");
-          if (pj.status === "failed") throw new Error(pj.error?.message || "A análise falhou. Tente novamente.");
-          if (pj.status === "done") {
-            data = pj;
-            break;
-          }
-        }
-      }
-      data = data.result;
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.error || "O servidor demorou demais ou falhou antes de concluir a análise. Tente novamente.");
       setResult(data);
       setTimeout(() => resRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (err) {

@@ -6,10 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run",
-    "predev": "node scripts/embed-policy.mjs",
-    "prebuild": "node scripts/embed-policy.mjs",
-    "pretest": "node scripts/embed-policy.mjs"
+    "test": "vitest run"
   },
   "dependencies": {
     "lucide-react": "^1.68.0",
