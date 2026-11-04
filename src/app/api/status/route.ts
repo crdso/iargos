@@ -12,6 +12,15 @@ async function blobsDiag() {
     const ctx = JSON.parse(Buffer.from(process.env.NETLIFY_BLOBS_CONTEXT ?? "", "base64").toString("utf8"));
     out.contextKeys = Object.keys(ctx);
     const host = (u?: string) => { try { return new URL(u!).host; } catch { return null; } };
+    for (const [label, base] of [["edge", ctx.edgeURL], ["uncached", ctx.uncachedEdgeURL]] as const) {
+      for (const store of ["site:iargos", "iargos"]) {
+        const t0 = Date.now();
+        try {
+          const r = await fetch(`${base}/${ctx.siteID}/${store}/ping`, { headers: { authorization: `Bearer ${ctx.token}` }, signal: AbortSignal.timeout(4000) });
+          out[`raw ${label} ${store}`] = `HTTP ${r.status} ${Date.now() - t0}ms ${(await r.text()).slice(0, 80)}`;
+        } catch (e) { out[`raw ${label} ${store}`] = `erro ${String(e).slice(0, 80)}`; }
+      }
+    }
     out.hosts = { edge: host(ctx.edgeURL), uncached: host(ctx.uncachedEdgeURL), api: host(ctx.apiURL) };
   } catch (e) { out.contextError = String(e).slice(0, 100); }
   for (const u of ["https://edge.netlifyblobs.com/", "https://api.netlify.com/api/v1/", "https://api.openai.com/v1/models"]) {
