@@ -62,7 +62,7 @@ export type Review = z.infer<typeof reviewSchema>;
 
 export type ModelOutput = z.infer<typeof modelOutputSchema>;
 
-export type Source = { titulo: string; dominio: string; url: string; relevancia: string; data?: string; papel?: string; posicao?: string };
+export type Source = { titulo: string; dominio: string; url: string; relevancia: string; data?: string; papel?: string; posicao?: string; citada?: boolean };
 export type MatrizLinha = { fonte: string; url: string | null; papel: string; posicao: string; origem: string; grounded: boolean; contaComoLinha: boolean; trecho: string };
 export type Uso = { chamadas: number; tokensEntrada: number; tokensSaida: number; tokensTotal: number; consultasBusca: number; revisaoExecutada: boolean; cache: boolean; custoUsd: number; consultasEfetuadas?: string[] };
 export type VerifyResult = {

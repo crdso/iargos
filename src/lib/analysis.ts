@@ -84,9 +84,27 @@ export function extractSources(refs: Refs | undefined, notes: ModelOutput["notas
       url: r.url,
       relevancia: note?.relevancia ?? (cited ? "Fonte citada pela IA (sem nota de relevância)." : "Página consultada na pesquisa, não citada diretamente."),
       data: note?.data,
+      citada: cited,
     });
   };
   for (const c of refs?.citations ?? []) add(c, true);
   for (const c of refs?.consulted ?? []) add(c, false);
   return out;
+}
+
+/** Remove citações em markdown "([site](url))" e o rastreio utm_source que o modelo embute no texto. */
+export function cleanText(t: string): string {
+  return t
+    .replace(/\s*\(\s*\[[^\]]*\]\([^)]*\)\s*\)/g, "")
+    .replace(/\[([^\]]+)\]\(https?:\/\/[^)]+\)/g, "$1")
+    .replace(/[?&]utm_source=openai/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+}
+
+/** Limita as fontes exibidas: citadas e as usadas na matriz primeiro, depois as demais até o máximo. */
+export function limitSources<T extends Source>(fontes: T[], usadas: Set<string>, max = 15): T[] {
+  const prio = fontes.filter((f) => f.citada || usadas.has(f.url));
+  const rest = fontes.filter((f) => !(f.citada || usadas.has(f.url)));
+  return [...prio, ...rest].slice(0, Math.max(max, prio.length > max ? max : max));
 }

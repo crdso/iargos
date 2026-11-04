@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { extractSources, parseModelJson } from "./analysis";
+import { cleanText, extractSources, limitSources, parseModelJson } from "./analysis";
 import { reviewSchema, type Review, type VerifyResult } from "./schema";
 import { applyValidators } from "./verification";
 import { budgetExceeded, cacheGet, cacheKey, cacheSet, estimateCost, normalizeResponse, recordUsage, sumUso, type Normalized } from "./usage";
@@ -181,22 +181,27 @@ export async function runVerification(input: string, url: string | null, deps: {
   let confianca = cls === "Inconclusiva" || cls === "Não verificável" ? null : final.confianca;
   if (confianca !== null && reviewFalhou) confianca = Math.min(confianca, 60);
 
-  const fontesAnotadas = fontes.map((f) => {
-    const m = final.matriz.find((x) => x.url === f.url);
-    return m ? { ...f, papel: m.papel, posicao: m.posicao } : f;
-  });
+  const usadas = new Set(final.matriz.filter((m) => m.url).map((m) => m.url as string));
+  const fontesAnotadas = limitSources(
+    fontes.map((f) => {
+      const m = final.matriz.find((x) => x.url === f.url);
+      return m ? { ...f, papel: m.papel, posicao: m.posicao } : f;
+    }),
+    usadas,
+    15,
+  );
 
   const result: VerifyResult = {
     classificacao: cls,
     resumo: rebaixada
-      ? `A corroboração disponível não sustenta um veredito categórico. Motivo: ${motivos.join(" ")} Análise preliminar da IA (não confirmada): ${parsed.resumo}`
-      : parsed.resumo,
-    alegacao: parsed.alegacao_principal,
+      ? `A corroboração disponível não sustenta um veredito categórico. Motivo: ${motivos.join(" ")} Análise preliminar da IA (não confirmada): ${cleanText(parsed.resumo)}`
+      : cleanText(parsed.resumo),
+    alegacao: cleanText(parsed.alegacao_principal),
     confianca,
-    quemCriou: parsed.quem_criou,
-    qualAFonte: parsed.qual_a_fonte,
-    qualOInteresse: parsed.qual_o_interesse,
-    limitacoes: [parsed.limitacoes, reviewFalhou ? (podeRevisar ? "A revisão crítica não pôde ser concluída." : "Revisão crítica dispensada pelo limite de gasto por verificação.") : ""].filter(Boolean).join(" "),
+    quemCriou: cleanText(parsed.quem_criou),
+    qualAFonte: cleanText(parsed.qual_a_fonte),
+    qualOInteresse: cleanText(parsed.qual_o_interesse),
+    limitacoes: [cleanText(parsed.limitacoes), reviewFalhou ? (podeRevisar ? "A revisão crítica não pôde ser concluída." : "Revisão crítica dispensada pelo limite de gasto por verificação.") : ""].filter(Boolean).join(" "),
     fontes: fontesAnotadas,
     verificadoEm: new Date().toISOString(),
     modelo: model,

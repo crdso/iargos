@@ -100,3 +100,18 @@ describe("erros da OpenAI", () => {
     expect(e.detail).not.toMatch(/sk-proj|sk-xyz/);
   });
 });
+
+import { cleanText, limitSources } from "@/lib/analysis";
+describe("limpeza de texto e fontes", () => {
+  it("remove citações em markdown e utm_source", () => {
+    expect(cleanText("O Pix foi lançado em 2020. ([gov.br](https://gov.br/x?utm_source=openai))")).toBe("O Pix foi lançado em 2020.");
+    expect(cleanText("Veja [BC](https://bcb.gov.br/p?utm_source=openai) agora")).toBe("Veja BC agora");
+  });
+  it("limita fontes exibidas priorizando citadas e usadas na matriz", () => {
+    const f = Array.from({ length: 40 }, (_, i) => ({ titulo: `s${i}`, dominio: "d", url: `https://d.com/${i}`, relevancia: "", citada: i === 30 }));
+    const out = limitSources(f, new Set(["https://d.com/35"]), 15);
+    expect(out).toHaveLength(15);
+    expect(out[0].url).toBe("https://d.com/30");
+    expect(out[1].url).toBe("https://d.com/35");
+  });
+});
