@@ -69,7 +69,9 @@ export async function runVerification(input: string, url: string | null): Promis
   // URL submetida pelo usuário não é evidência independente de sua própria alegação.
   // Sem resultado de busca com metadados reais, nunca publicar um veredito categórico.
   const hasGroundedEvidence = !!cand?.groundingMetadata?.groundingChunks?.some(
-    (chunk) => chunk.web?.uri && /^https?:\\/\\//i.test(chunk.web.uri),
+    (chunk) => typeof chunk.web?.uri === "string" && (
+      chunk.web.uri.startsWith("https://") || chunk.web.uri.startsWith("http://")
+    ),
   );
   const cannotConclude = !hasGroundedEvidence && parsed.classificacao !== "Não verificável";
   return {
