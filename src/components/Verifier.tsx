@@ -48,13 +48,7 @@ const INFO: Record<string, { t: string; body: React.ReactNode }> = {
   contato: {
     t: "Contato",
     body: (
-      <p>
-        Dúvidas, sugestões ou correções: abra uma issue em{" "}
-        <a className="underline" style={{ color: "var(--blue2)" }} href="https://github.com/crdso/iargos" target="_blank" rel="noopener noreferrer">
-          github.com/crdso/iargos
-        </a>
-        .
-      </p>
+      <p>Dúvidas, sugestões ou correções sobre o IArgos? Entre em contato com a equipe do projeto.</p>
     ),
   },
   termos: {
