@@ -66,15 +66,27 @@ export async function runVerification(input: string, url: string | null): Promis
   const parsed = parseModelJson(response.text ?? "");
   if (!parsed) throw new VerifyError("A IA não retornou uma análise válida. Tente novamente.", 502, "invalid_output");
   const fontes = extractSources(cand?.groundingMetadata as never, cand?.urlContextMetadata as never, parsed.notas_fontes);
+  // URL submetida pelo usuário não é evidência independente de sua própria alegação.
+  // Sem resultado de busca com metadados reais, nunca publicar um veredito categórico.
+  const hasGroundedEvidence = !!cand?.groundingMetadata?.groundingChunks?.some(
+    (chunk) => chunk.web?.uri && /^https?:\\/\\//i.test(chunk.web.uri),
+  );
+  const cannotConclude = !hasGroundedEvidence && parsed.classificacao !== "Não verificável";
   return {
-    classificacao: parsed.classificacao,
-    resumo: parsed.resumo,
+    classificacao: cannotConclude ? "Inconclusiva" : parsed.classificacao,
+    resumo: cannotConclude
+      ? "Não foi possível reunir evidências externas verificáveis nesta pesquisa. Não é seguro confirmar nem negar a alegação."
+      : parsed.resumo,
     alegacao: parsed.alegacao_principal,
-    confianca: computeConfidence(parsed.criterios, fontes.length),
+    confianca: cannotConclude || parsed.classificacao === "Inconclusiva" || parsed.classificacao === "Não verificável"
+      ? null
+      : computeConfidence(parsed.criterios, fontes.length),
     quemCriou: parsed.quem_criou,
     qualAFonte: parsed.qual_a_fonte,
     qualOInteresse: parsed.qual_o_interesse,
-    limitacoes: parsed.limitacoes,
+    limitacoes: cannotConclude
+      ? [parsed.limitacoes, "Nenhuma evidência independente de busca foi retornada pelo provedor."].filter(Boolean).join(" ")
+      : parsed.limitacoes,
     fontes,
     verificadoEm: new Date().toISOString(),
     modelo: model,
