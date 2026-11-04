@@ -26,3 +26,12 @@ As três perguntas obrigatórias são **Quem criou?**, **Qual a fonte?** e **Qua
 **Atenção:** a política é um controle editorial, não uma prova técnica de independência das fontes. A implementação atual ainda exige testes reais com chave Gemini, validação do grounding e medidas determinísticas adicionais antes de disponibilizar o IArgos publicamente como checador de fatos de alta confiança. Uma contagem de URLs não prova corroboração independente.
 
 A chave **não** deve ser enviada ao GitHub. Configure apenas `.env.local` localmente ou as variáveis de ambiente secretas da hospedagem.
+
+## Segunda camada de verificação (validação no servidor)
+
+1. O Gemini (com Google Search Grounding) devolve uma **matriz de evidências** (`evidencias`): fonte, papel (primária / independente / republicação), posição (apoia / contradiz), origem comum e trecho.
+2. `src/lib/verification.ts` valida a matriz **sem depender do texto do modelo**: descarta fontes que a busca não retornou, agrupa fontes com a mesma origem/domínio em uma só linha, ignora republicações e a página enviada pelo usuário, e só mantém um veredito categórico com 1 evidência primária decisiva ou ≥3 linhas independentes, sem contradição não resolvida. Notícia antiga reapresentada como recente vira "Enganosa ou fora de contexto". Caso contrário: **Inconclusiva**.
+3. Uma **revisão crítica** (2ª chamada, sem busca) só pode reduzir a certeza. Não é chamada quando o veredito já é Inconclusiva/Não verificável.
+4. Consumo: tokens e consultas de busca por chamada (`uso`), contadores diários, `DAILY_TOKEN_BUDGET`, cache em memória (hash, 30 min).
+
+**Ainda não validado com chave real:** o modelo preencher a matriz de forma fiel e consistente, o casamento dos nomes de fontes com os metadados do grounding (os links são redirecionamentos da Google), o formato real de `usageMetadata`/`webSearchQueries`, custo real por consulta e calibração dos limiares (1 primária / 3 linhas). Testes atuais usam respostas simuladas.

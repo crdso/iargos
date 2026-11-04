@@ -25,7 +25,9 @@ export async function POST(req: Request) {
   if (url && !isSafeUrl(url)) return NextResponse.json({ error: "URL inválida ou não permitida (use http/https público)." }, { status: 400 });
 
   try {
-    return NextResponse.json(await runVerification(input, url));
+    const result = await runVerification(input, url);
+    console.info(`[iargos] ${result.classificacao} tokens=${result.uso.tokensTotal} buscas=${result.uso.consultasBusca} chamadas=${result.uso.chamadas} cache=${result.uso.cache}`);
+    return NextResponse.json(result);
   } catch (e) {
     if (e instanceof VerifyError) return NextResponse.json({ error: e.message, code: e.code }, { status: e.status });
     return NextResponse.json({ error: "Erro interno." }, { status: 500 });

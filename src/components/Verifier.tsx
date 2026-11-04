@@ -244,6 +244,46 @@ function ResultPanel({ r }: { r: VerifyResult }) {
         </div>
       )}
 
+      {r.matriz.length > 0 && (
+        <div className="card p-6">
+          <h2 className="mb-1 text-lg font-bold">Matriz de evidências</h2>
+          <p className="mb-3 text-sm" style={{ color: "var(--ink2)" }}>
+            Linhas independentes que apoiam: {r.linhasIndependentes.apoio}
+            {r.linhasIndependentes.primariaApoio ? " (com evidência primária)" : ""} · que contradizem: {r.linhasIndependentes.contradicao}. Republicações e fontes com a mesma origem contam como uma só.
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead>
+                <tr style={{ color: "var(--ink2)" }}>
+                  <th className="py-1 pr-3">Fonte</th>
+                  <th className="py-1 pr-3">Papel</th>
+                  <th className="py-1 pr-3">Posição</th>
+                  <th className="py-1">Conta como linha?</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.matriz.map((m, i) => (
+                  <tr key={i} className="border-t" style={{ borderColor: "var(--line)" }}>
+                    <td className="py-1 pr-3">
+                      {m.url ? (
+                        <a href={m.url} target="_blank" rel="noopener noreferrer" style={{ color: "var(--blue2)" }}>
+                          {m.fonte}
+                        </a>
+                      ) : (
+                        <span title="Não corresponde a uma fonte real da busca">{m.fonte} (não verificada)</span>
+                      )}
+                    </td>
+                    <td className="py-1 pr-3">{m.papel}</td>
+                    <td className="py-1 pr-3">{m.posicao}</td>
+                    <td className="py-1">{m.contaComoLinha ? "Sim" : "Não"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       <div className="card p-6">
         <h2 className="mb-3 text-lg font-bold">Fontes e evidências</h2>
         {r.fontes.length === 0 ? (
@@ -265,7 +305,7 @@ function ResultPanel({ r }: { r: VerifyResult }) {
           </ul>
         )}
         <p className="mt-4 text-xs" style={{ color: "var(--ink2)" }}>
-          Verificado em {new Date(r.verificadoEm).toLocaleString("pt-BR")} · modelo {r.modelo}
+          Verificado em {new Date(r.verificadoEm).toLocaleString("pt-BR")} · modelo {r.modelo} · {r.uso.tokensTotal} tokens, {r.uso.consultasBusca} consulta(s) de busca{r.uso.cache ? " (resultado em cache)" : ""}
         </p>
       </div>
     </div>
