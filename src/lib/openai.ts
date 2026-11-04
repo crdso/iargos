@@ -102,7 +102,7 @@ function parseReview(text: string): Review | null {
 
 /** Define quantas buscas permitir sem estourar o limite de gasto por verificação. */
 export function planSearchBudget(complex: boolean, capUsd = maxCostPerVerification()) {
-  const wanted = num(process.env.MAX_WEB_SEARCHES, complex ? 5 : 3);
+  const wanted = num(process.env.MAX_WEB_SEARCHES, complex ? 4 : 2);
   const tokenReserve = 0.03; // reserva p/ tokens (entrada com conteúdo de busca + saída + revisão)
   const allowed = Math.max(1, Math.floor((capUsd - tokenReserve) / 0.01));
   return Math.min(wanted, allowed);
@@ -137,7 +137,7 @@ export async function runVerification(input: string, url: string | null, deps: {
   const norms: Normalized[] = [];
   const spent = () => norms.reduce((a, n) => a + estimateCost(n, model).total, 0);
 
-  const raw1 = await generate({ model, system, prompt, search: true, maxToolCalls, effort: complex ? "medium" : "low", maxOutputTokens: 6000 });
+  const raw1 = await generate({ model, system, prompt, search: true, maxToolCalls, effort: "low", maxOutputTokens: 5000 });
   const n1 = normalizeResponse(raw1);
   norms.push(n1);
   recordUsage({ tokens: n1.total, searches: n1.searchCalls, costUsd: estimateCost(n1, model).total });

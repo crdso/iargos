@@ -62,8 +62,8 @@ describe("custo", () => {
     expect(c.total).toBeCloseTo(0.0344, 6);
   });
   it("limita o número de buscas pelo teto de gasto por verificação", () => {
-    expect(planSearchBudget(false, 0.1)).toBe(3);
-    expect(planSearchBudget(true, 0.1)).toBe(5);
+    expect(planSearchBudget(false, 0.1)).toBe(2);
+    expect(planSearchBudget(true, 0.1)).toBe(4);
     expect(planSearchBudget(true, 0.05)).toBe(2);
     expect(planSearchBudget(true, 0.01)).toBe(1); // sempre ao menos 1
   });

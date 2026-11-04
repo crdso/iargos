@@ -82,8 +82,8 @@ export default function Verifier() {
     setResult(null);
     try {
       const r = await fetch("/api/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input: q }) });
-      const data = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(data.error || "Não foi possível concluir a verificação.");
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.error || "O servidor demorou demais ou falhou antes de concluir a análise. Tente novamente.");
       setResult(data);
       setTimeout(() => resRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
     } catch (err) {
