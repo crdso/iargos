@@ -9,16 +9,21 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   let store: string = "indisponível";
   let budget = null;
+  let storeError: string | null = null;
   try {
     const kv = await getKV();
     store = kv.kind;
     budget = await budgetSnapshot(kv);
-  } catch {}
+  } catch (e) {
+    storeError = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+  }
   return NextResponse.json(
     {
       openaiKeyConfigured: !!process.env.OPENAI_API_KEY,
       model: getModel(),
       store,
+      storeError,
+      env: { NETLIFY: !!process.env.NETLIFY, blobsContext: !!process.env.NETLIFY_BLOBS_CONTEXT, runtime: process.env.AWS_LAMBDA_FUNCTION_NAME ? "lambda" : "other" },
       sharedProtection: store === "netlify-blobs",
       limits: limits(),
       budget,

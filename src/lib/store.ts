@@ -34,21 +34,24 @@ export function memoryKV(): KV {
   };
 }
 
+const withTimeout = <T,>(p: Promise<T>, ms = 6000): Promise<T> =>
+  Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`Netlify Blobs sem resposta em ${ms} ms`)), ms))]);
+
 async function netlifyKV(): Promise<KV> {
   const { getStore } = await import("@netlify/blobs");
   const store = getStore({ name: "iargos", consistency: "strong" });
   return {
     kind: "netlify-blobs",
     async get<T>(key: string) {
-      const r = await store.getWithMetadata(key, { type: "json", consistency: "strong" });
+      const r = await withTimeout(store.getWithMetadata(key, { type: "json", consistency: "strong" }));
       return r && r.etag ? { value: r.data as T, etag: r.etag } : null;
     },
     async put<T>(key: string, value: T, opt?: { ifNew?: boolean; ifMatch?: string }) {
-      const r = await store.setJSON(key, value, opt?.ifNew ? { onlyIfNew: true } : opt?.ifMatch ? { onlyIfMatch: opt.ifMatch } : {});
+      const r = await withTimeout(store.setJSON(key, value, opt?.ifNew ? { onlyIfNew: true } : opt?.ifMatch ? { onlyIfMatch: opt.ifMatch } : {}));
       return { ok: r.modified, etag: r.etag };
     },
     async del(key: string) {
-      await store.delete(key);
+      await withTimeout(store.delete(key));
     },
   };
 }
